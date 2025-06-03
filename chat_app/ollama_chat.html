@@ -5,38 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ollama Chat (ChatGPT Style)</title>
     <style>
+        html { font-size: 16px; }
         body { font-family: Arial, sans-serif; background: #f6f6f6; margin: 0; padding: 0; }
-        .chat-container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; flex-direction: column; height: 80vh; }
-        .chat-messages { flex: 1; padding: 24px; overflow-y: auto; }
-        .message { margin-bottom: 18px; }
+        header.app-header {
+            width: 100%;
+            background: none;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            padding-top: 1.5rem;
+            padding-left: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .model-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .chat-container { max-width: 37.5rem; margin: 2.5rem auto; border-radius: 0.5rem; box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,0.1); display: flex; flex-direction: column; height: 80vh; background: none; }
+        .chat-messages { flex: 1; padding: 1.5rem; overflow-y: auto; }
+        .message { margin-bottom: 1.125rem; }
         .user { text-align: right; }
         .user .bubble { background: #0078fe; color: #fff; }
-        .assistant .bubble { background: #e5e5ea; color: #222; }
-        .bubble { display: inline-block; padding: 12px 18px; border-radius: 18px; max-width: 80%; }
-        .input-area { display: flex; border-top: 1px solid #eee; padding: 16px; background: #fafafa; }
-        .input-area input { flex: 1; padding: 12px; border-radius: 18px; border: 1px solid #ccc; font-size: 16px; }
-        .input-area button { margin-left: 12px; padding: 12px 24px; border-radius: 18px; border: none; background: #0078fe; color: #fff; font-size: 16px; cursor: pointer; }
+        .assistant .bubble { background: none; color: #222; box-shadow: none; border: none; padding: 0; border-radius: 0; }
+        .bubble { display: inline-block; padding: 0.75rem 1.125rem; border-radius: 1.125rem; max-width: 80%; }
+        .input-area { display: flex; border-top: 0.063rem solid #eee; padding: 1rem; background: #fafafa; }
+        .input-area input { flex: 1; padding: 0.75rem; border-radius: 1.125rem; border: 0.063rem solid #ccc; font-size: 1rem; }
+        .input-area button { margin-left: 0.75rem; padding: 0.75rem 1.5rem; border-radius: 1.125rem; border: none; background: #0078fe; color: #fff; font-size: 1rem; cursor: pointer; }
         .input-area button:disabled { background: #aaa; }
     </style>
 </head>
 <body>
-    <div class="chat-container">
-        <div style="padding: 16px;">
-            <label for="modelSelect">Model:</label>
-            <select id="modelSelect"></select>
+        <header class="app-header">
+            <div class="model-bar">
+                <label for="modelSelect">Model:</label>
+                <select id="modelSelect">
+                    <option value="" disabled selected>Loading...</option>
+                </select>
+            </div>
+        </header>
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages"></div>
+            <form class="input-area" id="chatForm">
+                <input type="text" id="userInput" placeholder="Type your message..." autocomplete="off" required />
+                <button type="submit">Send</button>
+            </form>
         </div>
-        <div class="chat-messages" id="chatMessages"></div>
-        <form class="input-area" id="chatForm">
-            <input type="text" id="userInput" placeholder="Type your message..." autocomplete="off" required />
-            <button type="submit">Send</button>
-        </form>
-    </div>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
         const chatMessages = document.getElementById('chatMessages');
         const chatForm = document.getElementById('chatForm');
         const userInput = document.getElementById('userInput');
-        let conversation = [];
+        let conversation = [
+            { role: 'system', content: 'You are Larry AI, an AI Agent built to assist Larry in life and business.' }
+        ];
 
         function addMessage(role, content) {
             const msgDiv = document.createElement('div');
@@ -55,9 +77,12 @@
 
         window.addEventListener('DOMContentLoaded', async () => {
             const modelSelect = document.getElementById('modelSelect');
+            // Remove all options except the first (Loading...)
+            modelSelect.innerHTML = '<option value="" disabled selected>Loading...</option>';
             try {
                 const resp = await fetch('/api/tags');
                 const data = await resp.json();
+                modelSelect.innerHTML = '';
                 if (data.models && data.models.length) {
                     data.models.forEach(m => {
                         const opt = document.createElement('option');
@@ -65,8 +90,14 @@
                         opt.textContent = m.name;
                         modelSelect.appendChild(opt);
                     });
+                } else {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'No models found';
+                    modelSelect.appendChild(opt);
                 }
             } catch (e) {
+                modelSelect.innerHTML = '';
                 const opt = document.createElement('option');
                 opt.value = '';
                 opt.textContent = 'Failed to load models';

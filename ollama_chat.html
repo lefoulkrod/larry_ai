@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama Chat (ChatGPT Style)</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f6f6f6; margin: 0; padding: 0; }
+        .chat-container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; flex-direction: column; height: 80vh; }
+        .chat-messages { flex: 1; padding: 24px; overflow-y: auto; }
+        .message { margin-bottom: 18px; }
+        .user { text-align: right; }
+        .user .bubble { background: #0078fe; color: #fff; }
+        .assistant .bubble { background: #e5e5ea; color: #222; }
+        .bubble { display: inline-block; padding: 12px 18px; border-radius: 18px; max-width: 80%; }
+        .input-area { display: flex; border-top: 1px solid #eee; padding: 16px; background: #fafafa; }
+        .input-area input { flex: 1; padding: 12px; border-radius: 18px; border: 1px solid #ccc; font-size: 16px; }
+        .input-area button { margin-left: 12px; padding: 12px 24px; border-radius: 18px; border: none; background: #0078fe; color: #fff; font-size: 16px; cursor: pointer; }
+        .input-area button:disabled { background: #aaa; }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div style="padding: 16px;">
+            <label for="modelSelect">Model:</label>
+            <select id="modelSelect"></select>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <form class="input-area" id="chatForm">
+            <input type="text" id="userInput" placeholder="Type your message..." autocomplete="off" required />
+            <button type="submit">Send</button>
+        </form>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        const chatMessages = document.getElementById('chatMessages');
+        const chatForm = document.getElementById('chatForm');
+        const userInput = document.getElementById('userInput');
+        let conversation = [];
+
+        function addMessage(role, content) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role}`;
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            if (role === 'assistant') {
+                bubble.innerHTML = marked.parse(content);
+            } else {
+                bubble.textContent = content;
+            }
+            msgDiv.appendChild(bubble);
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const modelSelect = document.getElementById('modelSelect');
+            try {
+                const resp = await fetch('/api/tags');
+                const data = await resp.json();
+                if (data.models && data.models.length) {
+                    data.models.forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m.name;
+                        opt.textContent = m.name;
+                        modelSelect.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'Failed to load models';
+                modelSelect.appendChild(opt);
+            }
+        });
+
+        async function sendMessage(message) {
+            addMessage('user', message);
+            conversation.push({ role: 'user', content: message });
+            // Add placeholder for assistant
+            const assistantDiv = document.createElement('div');
+            assistantDiv.className = 'message assistant';
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.innerHTML = '';
+            assistantDiv.appendChild(bubble);
+            chatMessages.appendChild(assistantDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // Prepare Ollama request
+            const model = document.getElementById('modelSelect').value || 'llama3';
+            const body = {
+                model: model,
+                messages: conversation,
+                stream: true
+            };
+            try {
+                const response = await fetch('http://localhost:11434/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (!response.body) throw new Error('No response body');
+                const reader = response.body.getReader();
+                let assistantMsg = '';
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    const chunk = new TextDecoder().decode(value);
+                    // Ollama streams JSON lines
+                    chunk.split('\n').forEach(line => {
+                        if (line.trim()) {
+                            try {
+                                const data = JSON.parse(line);
+                                if (data.message && data.message.content) {
+                                    assistantMsg += data.message.content;
+                                    bubble.innerHTML = marked.parse(assistantMsg);
+                                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                                }
+                            } catch (e) { /* ignore parse errors */ }
+                        }
+                    });
+                }
+                conversation.push({ role: 'assistant', content: assistantMsg });
+            } catch (err) {
+                bubble.textContent = '[Error: ' + err.message + ']';
+            }
+        }
+
+        chatForm.addEventListener('submit', e => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            if (!message) return;
+            userInput.value = '';
+            sendMessage(message);
+        });
+    </script>
+</body>
+</html>

@@ -1,6 +1,5 @@
-# Ollama Chat App
-
-A simple, modern web chat UI and Python proxy server for interacting with Ollama models. The assistant is always instructed as "Larry AI, an AI Agent built to assist Larry in life and business."
+# COMPUTRON 9000
+I am COMPUTRON 9000.
 
 ## Features
 - Modern, responsive chat UI (ChatGPT style)

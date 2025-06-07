@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ollama Chat (ChatGPT Style)</title>
+    <title>COMPUTRON AI 🤖</title>
     <style>
         html { font-size: 16px; }
         body { font-family: Arial, sans-serif; background: #f6f6f6; margin: 0; padding: 0; }
@@ -11,16 +11,26 @@
             width: 100%;
             background: none;
             display: flex;
-            flex-direction: column;
-            align-items: flex-start;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
             padding-top: 1.5rem;
             padding-left: 2.5rem;
+            padding-right: 2.5rem;
             margin-bottom: 0.5rem;
+            box-sizing: border-box;
+        }
+        .app-title {
+            margin: 0 0 0.5rem 0;
+            font-size: 2rem;
+            font-weight: bold;
+            letter-spacing: 0.03em;
         }
         .model-bar {
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            margin-bottom: 0.5rem;
         }
         .chat-container { max-width: 37.5rem; margin: 2.5rem auto; border-radius: 0.5rem; box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,0.1); display: flex; flex-direction: column; height: 80vh; background: none; }
         .chat-messages { flex: 1; padding: 1.5rem; overflow-y: auto; }
@@ -34,16 +44,36 @@
         .input-area button { margin-left: 0.75rem; padding: 0.75rem 1.5rem; border-radius: 1.125rem; border: none; background: #0078fe; color: #fff; font-size: 1rem; cursor: pointer; }
         .input-area button:disabled { background: #aaa; }
     </style>
+    <!-- Loading indicator CSS -->
+    <style id="loading-indicator-style">
+        .loading-indicator {
+            color: #888;
+            font-style: italic;
+            font-size: 1rem;
+            letter-spacing: 0.1em;
+        }
+        .loading-indicator .dot {
+            animation: blink 1.2s infinite both;
+        }
+        .loading-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
+        .loading-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes blink {
+            0%, 20% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
 </head>
 <body>
-        <header class="app-header">
-            <div class="model-bar">
-                <label for="modelSelect">Model:</label>
-                <select id="modelSelect">
-                    <option value="" disabled selected>Loading...</option>
-                </select>
-            </div>
-        </header>
+    <header class="app-header">
+        <h1 class="app-title">COMPUTRON 9000 🤖</h1>
+        <div class="model-bar">
+            <label for="modelSelect">Model:</label>
+            <select id="modelSelect">
+                <option value="" disabled selected>Loading...</option>
+            </select>
+        </div>
+    </header>
         <div class="chat-container">
             <div class="chat-messages" id="chatMessages"></div>
             <form class="input-area" id="chatForm">
@@ -56,9 +86,7 @@
         const chatMessages = document.getElementById('chatMessages');
         const chatForm = document.getElementById('chatForm');
         const userInput = document.getElementById('userInput');
-        let conversation = [
-            { role: 'system', content: 'You are Larry AI, an AI Agent built to assist Larry in life and business.' }
-        ];
+        let conversation = [];
 
         function addMessage(role, content) {
             const msgDiv = document.createElement('div');
@@ -113,20 +141,22 @@
             assistantDiv.className = 'message assistant';
             const bubble = document.createElement('div');
             bubble.className = 'bubble';
-            bubble.innerHTML = '';
+            // Show loading indicator
+            bubble.innerHTML = '<span class="loading-indicator">Thinking<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></span>';
             assistantDiv.appendChild(bubble);
             chatMessages.appendChild(assistantDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
 
             // Prepare Ollama request
             const model = document.getElementById('modelSelect').value || 'llama3';
+            // Only send the latest user message
             const body = {
                 model: model,
-                messages: conversation,
+                message: message,
                 stream: true
             };
             try {
-                const response = await fetch('http://localhost:11434/api/chat', {
+                const response = await fetch('http://localhost:8080/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
@@ -134,17 +164,23 @@
                 if (!response.body) throw new Error('No response body');
                 const reader = response.body.getReader();
                 let assistantMsg = '';
+                // Remove loading indicator as soon as we get a response chunk
+                let loadingRemoved = false;
                 while (true) {
                     const { value, done } = await reader.read();
                     if (done) break;
                     const chunk = new TextDecoder().decode(value);
-                    // Ollama streams JSON lines
                     chunk.split('\n').forEach(line => {
                         if (line.trim()) {
                             try {
                                 const data = JSON.parse(line);
-                                if (data.message && data.message.content) {
-                                    assistantMsg += data.message.content;
+                                if (data.response) {
+                                    if (!loadingRemoved) {
+                                        loadingRemoved = true;
+                                        // Clear loading indicator
+                                        bubble.innerHTML = '';
+                                    }
+                                    assistantMsg += data.response;
                                     bubble.innerHTML = marked.parse(assistantMsg);
                                     chatMessages.scrollTop = chatMessages.scrollHeight;
                                 }

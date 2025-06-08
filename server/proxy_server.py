@@ -66,35 +66,21 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         """Serve the chat UI or proxy model tags to Ollama."""
-        if self.path in ['/', '/ollama_chat.html']:
+        if self.path in ['', '/']:
             self.send_response(200)
             self.send_header('Content-Type', 'text/html')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            # Serve ollama_chat.html from the public directory
-            html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'server', 'public', 'ollama_chat.html')
+            # Serve agent_ui.html from the correct static directory
+            html_path = os.path.join(os.path.dirname(__file__), 'static', 'agent_ui.html')
             try:
                 with open(html_path, 'rb') as f:
                     self.wfile.write(f.read())
             except FileNotFoundError:
-                self.wfile.write(b'<h1>ollama_chat.html not found</h1>')
-        elif self.path == '/api/tags':
-            req = urllib.request.Request('http://localhost:11434/api/tags', method='GET')
-            try:
-                with urllib.request.urlopen(req) as resp:
-                    self.send_response(resp.status)
-                    self.send_header('Access-Control-Allow-Origin', '*')
-                    self.send_header('Content-Type', resp.headers.get('Content-Type', 'application/json'))
-                    self.end_headers()
-                    self.wfile.write(resp.read())
-            except urllib.error.HTTPError as e:
-                self.send_response(e.code)
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                self.wfile.write(e.read())
-        elif self.path.startswith('/public/'):
-            # Serve static files from the public directory
-            file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'server', self.path.lstrip('/'))
+                self.wfile.write(b'<h1>File not found</h1>')
+        elif self.path.startswith('/static/'):
+            # Serve static files from the static directory (sibling to this script)
+            file_path = os.path.join(os.path.dirname(__file__), self.path.lstrip('/'))
             if os.path.isfile(file_path):
                 self.send_response(200)
                 # Basic content type detection
@@ -104,6 +90,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_header('Content-Type', 'application/javascript')
                 elif file_path.endswith('.html'):
                     self.send_header('Content-Type', 'text/html')
+                elif file_path.endswith('.png'):
+                    self.send_header('Content-Type', 'image/png')
+                elif file_path.endswith('.jpg') or file_path.endswith('.jpeg'):
+                    self.send_header('Content-Type', 'image/jpeg')
+                elif file_path.endswith('.svg'):
+                    self.send_header('Content-Type', 'image/svg+xml')
                 else:
                     self.send_header('Content-Type', 'application/octet-stream')
                 self.send_header('Access-Control-Allow-Origin', '*')

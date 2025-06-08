@@ -7,7 +7,7 @@ import asyncio
 from typing import Any
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from agent.agent import root_agent
+from agents.agent import root_agent
 from google.genai import types
 import os
 
@@ -66,14 +66,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         """Serve the chat UI or proxy model tags to Ollama."""
-        
         if self.path in ['/', '/ollama_chat.html']:
             self.send_response(200)
             self.send_header('Content-Type', 'text/html')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            # Always serve ollama_chat.html from the same directory as this script
-            html_path = os.path.join(os.path.dirname(__file__), 'ollama_chat.html')
+            # Serve ollama_chat.html from the public directory
+            html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'server', 'public', 'ollama_chat.html')
             try:
                 with open(html_path, 'rb') as f:
                     self.wfile.write(f.read())
@@ -93,6 +92,26 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
                 self.wfile.write(e.read())
+        elif self.path.startswith('/public/'):
+            # Serve static files from the public directory
+            file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'server', self.path.lstrip('/'))
+            if os.path.isfile(file_path):
+                self.send_response(200)
+                # Basic content type detection
+                if file_path.endswith('.css'):
+                    self.send_header('Content-Type', 'text/css')
+                elif file_path.endswith('.js'):
+                    self.send_header('Content-Type', 'application/javascript')
+                elif file_path.endswith('.html'):
+                    self.send_header('Content-Type', 'text/html')
+                else:
+                    self.send_header('Content-Type', 'application/octet-stream')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                with open(file_path, 'rb') as f:
+                    self.wfile.write(f.read())
+            else:
+                self.send_error(404)
         else:
             super().do_GET()
 
@@ -120,11 +139,5 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         return asyncio.run(call_agent_async(user_query, self.runner, user_id, session_id))
 
 if __name__ == '__main__':
-    with socketserver.ThreadingTCPServer(('', PORT), ProxyHandler) as httpd:
-        print(f"Serving at http://localhost:{PORT}")
-        try:
-            httpd.serve_forever()
-        except KeyboardInterrupt:
-            print("\nShutting down server.")
-            httpd.shutdown()
-            httpd.server_close()
+    from server import start_server
+    start_server()

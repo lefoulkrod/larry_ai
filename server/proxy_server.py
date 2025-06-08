@@ -1,10 +1,5 @@
 import http.server
-import socketserver
-import urllib.request
-import urllib.error
-import sys
 import asyncio
-from typing import Any
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from agents.agent import root_agent
@@ -13,18 +8,31 @@ import os
 
 PORT: int = 8080
 
+# Instantiate session service
+session_service = InMemorySessionService()
+
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
+    DEFAULT_USER_ID = "default_user"
+    DEFAULT_SESSION_ID = "default_session"
+    APP_NAME = "computron_9000"
+
     def __init__(self, *args, **kwargs):
-        # Instantiate and store an Agent Runner
-        session_service = InMemorySessionService()
-        self.session = asyncio.run(session_service.create_session(
-            app_name="larry_ai_chat_app", 
-            user_id="default_user"
-        ))
+        # Ensure a session exists, or create one if not
+        session = session_service.get_session_sync(
+            app_name=self.APP_NAME, 
+            user_id=self.DEFAULT_USER_ID,
+            session_id=self.DEFAULT_SESSION_ID
+        )
+        if session is None:
+            session = session_service.create_session_sync(
+                app_name=self.APP_NAME,
+                user_id=self.DEFAULT_USER_ID,
+                session_id=self.DEFAULT_SESSION_ID
+            )
         self.runner = Runner(
             agent=root_agent,  # The agent we want to run
-            app_name="larry_ai_chat_app",  # Associates runs with our app
-            session_service=session_service  # Uses our session manager
+            app_name=self.APP_NAME,  # Associates runs with our app
+            session_service=session_service  # Uses our shared session manager
         )
         super().__init__(*args, **kwargs)
 
@@ -45,7 +53,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             import json
             try:
                 data = json.loads(post_data.decode('utf-8'))
-                user_query = data.get('message') or data.get('query') or ''
+                user_query = data.get('message')
             except Exception:
                 self.send_response(400)
                 self.send_header('Access-Control-Allow-Origin', '*')
@@ -54,7 +62,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(b'{"error": "Invalid JSON or missing message field."}')
                 return
             # Call the agent and get the response
-            agent_response = self.handle_agent_chat(user_query, self.session.user_id, self.session.id)
+            agent_response = self.handle_agent_chat(user_query)
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Content-Type', 'application/json')
@@ -113,12 +121,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
         super().end_headers()
 
-    def handle_agent_chat(self, user_query: str, user_id: str = "default_user", session_id: str = "default_session") -> str:
+    def handle_agent_chat(self, user_query: str) -> str:
         """Handles a chat message by passing it to the agent runner and returning the response."""
-        async def call_agent_async(query: str, runner, user_id, session_id):
+        async def call_agent_async(query: str, runner):
             content = types.Content(role='user', parts=[types.Part(text=query)])
             final_response_text = "Agent did not produce a final response."
-            async for event in runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
+            async for event in runner.run_async(user_id=self.DEFAULT_USER_ID, session_id=self.DEFAULT_SESSION_ID, new_message=content):
                 if event.is_final_response():
                     if event.content and event.content.parts:
                         final_response_text = event.content.parts[0].text
@@ -128,7 +136,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             return final_response_text
 
         # Run the async function in the current (sync) context
-        return asyncio.run(call_agent_async(user_query, self.runner, user_id, session_id))
+        return asyncio.run(call_agent_async(user_query, self.runner))
 
 if __name__ == '__main__':
     from server import start_server

@@ -1,9 +1,9 @@
 import os
 import socketserver
-from .proxy_server import ProxyHandler, PORT
+from .request_handler import RequestHandler, PORT
 
 def start_server():
-    with socketserver.ThreadingTCPServer(('', PORT), ProxyHandler) as httpd:
+    with socketserver.ThreadingTCPServer(('', PORT), RequestHandler) as httpd:
         print(f"Serving at http://localhost:{PORT}")
         try:
             httpd.serve_forever()

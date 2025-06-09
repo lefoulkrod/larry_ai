@@ -1,5 +1,6 @@
-# Main entrypoint for the app
-from server import start_server
+import aiohttp.web
+
+from server.aiohttp_server import app, PORT
 
 if __name__ == "__main__":
-    start_server()
+    aiohttp.web.run_app(app, port=PORT)

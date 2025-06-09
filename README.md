@@ -1,9 +1,9 @@
-# COMPUTRON 9000
-I am COMPUTRON 9000.
+# COMPUTRON_9000
+I am COMPUTRON_9000.
+![alt text](image.png)
 
 ## Features
 - Modern, responsive chat UI (ChatGPT style)
-- Model selector (auto-populated from Ollama)
 - System prompt for consistent assistant behavior
 - Python proxy server for CORS and API routing
 - Easy setup with [uv](https://github.com/astral-sh/uv) and `pyproject.toml`
@@ -43,30 +43,12 @@ I am COMPUTRON 9000.
 
 5. **Start the proxy server:**
    ```sh
-   python proxy_server.py
+   uv run main.py
    ```
 
 6. **Open the chat UI:**
    - Visit [http://localhost:8080](http://localhost:8080) in your browser.
 
 ## Usage
-- Select a model from the dropdown (auto-populated from Ollama).
 - Type your message and press Enter or click Send.
-- The assistant will always respond as "Larry AI".
 
-## Project Structure
-```
-chat_app/
-    ollama_chat.html      # Chat UI (frontend)
-    proxy_server.py       # Python proxy server
-    pyproject.toml        # Project metadata and dependencies
-    .python-version       # Python version pin
-```
-
-## Notes
-- The `.venv` folder is local and should not be committed to git.
-- The system prompt is hardcoded in the frontend for consistent assistant behavior.
-- The proxy server handles CORS and API routing for the frontend.
-
-## License
-MIT
